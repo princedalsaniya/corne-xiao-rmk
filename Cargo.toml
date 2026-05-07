@@ -14,7 +14,6 @@ rmk = { git = "https://github.com/HaoboGu/rmk", tag = "rmk-v0.8.2", features = [
     "split",
     "async_matrix",
     "adafruit_bl",
-    "ssd1306",
 ] }
 # Must use haobogu's fork — same one the rmk example uses
 nrf-sdc = { git = "https://github.com/haobogu/nrf-sdc", rev = "ffe59a7aefaaa145a3d2474602f33387f80dcefa", features = [

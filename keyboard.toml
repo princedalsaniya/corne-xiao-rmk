@@ -134,18 +134,6 @@ row_offset = 0
 col_offset = 0
 ble_addr = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xC0]
 
-[split.central.display]
-driver = "ssd1306"
-size = "128x32"
-rotation = 180
-renderer = "OledRenderer"
-min_render_interval = 10
-
-[split.central.display.protocol.i2c]
-instance = "TWISPI0"
-sda = "P0_04"
-scl = "P0_05"
-
 [split.central.matrix]
 matrix_type = "normal"
 row_pins = ["P0_02", "P0_03", "P0_28", "P1_14"]
@@ -157,18 +145,6 @@ cols = 6
 row_offset = 0
 col_offset = 6
 ble_addr = [0x11, 0x22, 0x33, 0x44, 0x55, 0xC1]
-
-[split.peripheral.display]
-driver = "ssd1306"
-size = "128x32"
-rotation = 180
-renderer = "OledRenderer"
-min_render_interval = 10
-
-[split.peripheral.display.protocol.i2c]
-instance = "TWISPI0"
-sda = "P0_04"
-scl = "P0_05"
 
 [split.peripheral.matrix]
 matrix_type = "normal"
