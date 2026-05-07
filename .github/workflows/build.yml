@@ -43,6 +43,8 @@ jobs:
         run: cargo install cargo-hex-to-uf2
 
       - name: Build UF2 firmware
+        env:
+          RUST_MIN_STACK: 16777216
         run: cargo make uf2
 
       - name: Upload central (left half)
