@@ -1,0 +1,95 @@
+[keyboard]
+name = "Corne XIAO RMK"
+product_name = "Corne XIAO RMK"
+vendor_id = 0x4c4b
+product_id = 0x4643
+manufacturer = "princedalsaniya"
+chip = "nrf52840"
+
+[layout]
+rows = 4
+cols = 12
+layers = 3
+# Corne XIAO v2 — 4 rows × 12 cols (6 per half), 42 physical keys
+# Positions (3,0),(3,1),(3,10),(3,11) have no physical switch — use "No"
+keymap = [
+    # ── Layer 0 · Base ────────────────────────────────────────────────────
+    [
+        # row 0: top row
+        ["Tab",    "Q",  "W",  "E",  "R",   "T",   "Y",   "U",         "I",         "O",   "P",    "Escape"],
+        # row 1: home row
+        ["LShift", "A",  "S",  "D",  "F",   "G",   "H",   "J",         "K",         "L",   "Semicolon", "Quote"],
+        # row 2: bottom row
+        ["LCtrl",  "Z",  "X",  "C",  "V",   "B",   "N",   "M",         "Comma",     "Dot", "Slash","RShift"],
+        # row 3: thumb + unused
+        ["No",     "No", "MO(1)", "LGui", "Space", "No", "No", "Enter", "Backspace", "MO(2)", "No", "No"]
+    ],
+    # ── Layer 1 · Raise ───────────────────────────────────────────────────
+    [
+        # row 0
+        ["Bootloader", "No", "No", "No", "No", "No", "Kc1", "Kc2", "Kc3", "_",    "Up",   "_"],
+        # row 1  (window-manager shortcuts via Cmd+Opt+key)
+        ["_",  "WM(Left,  LGui|LAlt)", "WM(Right, LGui|LAlt)", "WM(F, LGui|LAlt)", "WM(M, LGui|LAlt)", "_",
+                "Kc4", "Kc5", "Kc6", "Left", "Down", "Right"],
+        # row 2
+        ["_",  "_",  "_",  "_",  "_",  "_",
+                "Kc7", "Kc8", "Kc9", "WM(C, LGui)", "WM(V, LGui)", "WM(C, LGui|LAlt)"],
+        # row 3
+        ["No", "No", "MO(1)", "_", "_", "No", "No", "Enter", "Kc0", "_", "No", "No"]
+    ],
+    # ── Layer 2 · Lower ───────────────────────────────────────────────────
+    [
+        # row 0  (! @ # $ %  |  ` & ( ) *)
+        ["_",
+         "WM(Kc1, LShift)", "WM(Kc2, LShift)", "WM(Kc3, LShift)", "WM(Kc4, LShift)", "WM(Kc5, LShift)",
+         "Grave",
+         "WM(Kc7, LShift)", "WM(Kc9, LShift)", "WM(Kc0, LShift)", "WM(Kc8, LShift)",
+         "_"],
+        # row 1  (media  |  - + [ ] \ `)
+        ["_", "_", "_", "MediaPrevTrack", "MediaPlayPause", "MediaNextTrack",
+         "Minus", "WM(Equal, LShift)", "LeftBracket", "RightBracket", "Backslash", "Grave"],
+        # row 2  (volume  |  _ = { } | ^)
+        ["_", "_", "_", "AudioMute", "AudioVolUp", "AudioVolDown",
+         "WM(Minus, LShift)", "Equal",
+         "WM(LeftBracket, LShift)", "WM(RightBracket, LShift)", "WM(Backslash, LShift)",
+         "WM(Kc6, LShift)"],
+        # row 3
+        ["No", "No", "_", "_", "_", "No", "No", "_", "_", "_", "No", "No"]
+    ],
+]
+
+[ble]
+enabled = true
+
+[split]
+connection = "ble"
+
+# Central = left half
+[split.central]
+rows = 4
+cols = 6
+row_offset = 0
+col_offset = 0
+# BLE static random address — change these if you have address conflicts
+ble_addr = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xC0]
+
+[split.central.matrix]
+matrix_type = "normal"
+row_pins = ["P0_02", "P0_03", "P0_28", "P1_14"]
+col_pins = ["P0_10", "P1_15", "P0_29", "P1_13", "P1_11", "P1_12"]
+
+# Peripheral = right half
+[[split.peripheral]]
+rows = 4
+cols = 6
+row_offset = 0
+col_offset = 6
+ble_addr = [0x11, 0x22, 0x33, 0x44, 0x55, 0xC1]
+
+[split.peripheral.matrix]
+matrix_type = "normal"
+row_pins = ["P0_02", "P0_03", "P0_28", "P1_14"]
+col_pins = ["P1_11", "P1_12", "P1_13", "P1_15", "P0_29", "P0_10"]
+
+[rmk]
+split_peripherals_num = 1
