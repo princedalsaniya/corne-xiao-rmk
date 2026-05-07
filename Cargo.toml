@@ -11,7 +11,7 @@ license = "MIT OR Apache-2.0"
 # Pin to main branch commit — v0.8.2 tag uses embassy-nrf 0.8 which
 # conflicts with haobogu/nrf-sdc (needs embassy-nrf 0.10). Main branch
 # uses embassy-nrf 0.10 + bt-hci 0.8, fully coherent with nrf-sdc fork.
-rmk = { git = "https://github.com/HaoboGu/rmk", rev = "a4fd9f2a861b6e3a73af6c5ab1e0e31f83498e35", features = [
+rmk = { git = "https://github.com/HaoboGu/rmk", rev = "a4fd9f2a861b9d229c0e2ec172a6e8489ee7dc2b", features = [
     "nrf52840_ble",
     "split",
     "async_matrix",
