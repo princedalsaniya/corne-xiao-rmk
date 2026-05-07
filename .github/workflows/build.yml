@@ -1,0 +1,58 @@
+name: Build RMK Firmware
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+          components: rust-src, llvm-tools
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install flip-link
+        run: cargo install flip-link
+
+      - name: Install cargo-make
+        run: cargo install cargo-make
+
+      - name: Install cargo-binutils
+        run: cargo install cargo-binutils
+
+      - name: Install cargo-hex-to-uf2
+        run: cargo install cargo-hex-to-uf2
+
+      - name: Build UF2 firmware
+        run: cargo make uf2
+
+      - name: Upload central (left half)
+        uses: actions/upload-artifact@v4
+        with:
+          name: corne-xiao-rmk-central
+          path: corne-xiao-rmk-central.uf2
+
+      - name: Upload peripheral (right half)
+        uses: actions/upload-artifact@v4
+        with:
+          name: corne-xiao-rmk-peripheral
+          path: corne-xiao-rmk-peripheral.uf2
