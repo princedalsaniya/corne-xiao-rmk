@@ -58,6 +58,13 @@ rand = { version = "0.8.4", default-features = false }
 rand_core = { version = "0.6" }
 rand_chacha = { version = "0.3", default-features = false }
 
+# OLED display rendering — used by src/display.rs (LeftRenderer/RightRenderer).
+# Versions pinned to match what RMK itself depends on so we don't pull in
+# duplicate copies (would cause "two versions of the same type" errors when
+# passing a `&mut D: DrawTarget<Color = BinaryColor>` from RMK to our code).
+embedded-graphics = "0.8"
+heapless = "0.9"
+
 [build-dependencies]
 xz2 = "0.1.7"
 json = "0.12"

@@ -25,7 +25,7 @@ keymap = [
     [
         # Bootloader | BT_SEL 0-3 not supported in toml (use Vial to assign) | BT_CLR = ClearEeprom
         ["Bootloader", "No", "No", "No", "No", "ClearEeprom",
-         "Kc1", "Kc2", "Kc3", "_", "Up", "_"],
+         "Kc1", "Kc2", "Kc3", "_", "Up", "Bootloader"],
         # wm_left=MACRO(0)  wm_right=MACRO(1)  wm_f=MACRO(2)  wm_m=MACRO(3)
         ["_", "MACRO(0)", "MACRO(1)", "MACRO(2)", "MACRO(3)", "_",
          "Kc4", "Kc5", "Kc6", "Left", "Down", "Right"],
@@ -137,8 +137,14 @@ ble_addr = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xC0]
 [split.central.display]
 driver = "ssd1306"
 size = "128x32"
-rotation = 180
-renderer = "OledRenderer"
+# Mounted vertically, so the panel is rotated 90°. The renderer treats the
+# logical framebuffer as 32 wide × 128 tall and handles per-section content
+# orientation itself (battery upright at the top, layer text rotated below).
+rotation = 90
+renderer = "crate::display::LeftRenderer"
+# Re-render at ~30 FPS for the idle "breathing" animation. Without this the
+# display would only redraw on events, and the dither pulse wouldn't pulse.
+render_interval = 33
 min_render_interval = 10
 
 [split.central.display.protocol.i2c]
@@ -161,8 +167,10 @@ ble_addr = [0x11, 0x22, 0x33, 0x44, 0x55, 0xC1]
 [split.peripheral.display]
 driver = "ssd1306"
 size = "128x32"
-rotation = 180
-renderer = "OledRenderer"
+# Same vertical mount → Rotate90.
+rotation = 90
+renderer = "crate::display::RightRenderer"
+render_interval = 33
 min_render_interval = 10
 
 [split.peripheral.display.protocol.i2c]
