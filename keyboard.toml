@@ -45,7 +45,7 @@ keymap = [
         ["_", "_", "_", "MediaPrevTrack", "MediaPlayPause", "MediaNextTrack",
          "Minus", "WM(Equal, LShift)", "LeftBracket", "RightBracket", "Backslash", "WM(Grave, LShift)"],
         # mute vol-dn vol-up  |  _ = { } | ^
-        ["_", "_", "_", "AudioMute", "AudioVolDown", "AudioVolUp",
+        ["MACRO(7)", "MACRO(8)", "_", "AudioMute", "AudioVolDown", "AudioVolUp",
          "WM(Minus, LShift)", "Equal",
          "WM(LeftBracket, LShift)", "WM(RightBracket, LShift)", "WM(Backslash, LShift)", "WM(Kc6, LShift)"],
         ["No", "No", "_", "_", "_", "No",   "No", "_", "Bootloader", "MO(2)", "No", "No"]
@@ -116,6 +116,26 @@ operations = [
     { operation = "down", keycode = "LAlt" },
     { operation = "tap",  keycode = "C" },
     { operation = "up",   keycode = "LAlt" },
+    { operation = "up",   keycode = "LGui" },
+]
+
+# MACRO(7) — screenshot: Cmd+Shift+4
+[[behavior.macro.macros]]
+operations = [
+    { operation = "down", keycode = "LGui" },
+    { operation = "down", keycode = "LShift" },
+    { operation = "tap",  keycode = "Kc4" },
+    { operation = "up",   keycode = "LShift" },
+    { operation = "up",   keycode = "LGui" },
+]
+
+# MACRO(8) — screenrecord: Cmd+Shift+5
+[[behavior.macro.macros]]
+operations = [
+    { operation = "down", keycode = "LGui" },
+    { operation = "down", keycode = "LShift" },
+    { operation = "tap",  keycode = "Kc5" },
+    { operation = "up",   keycode = "LShift" },
     { operation = "up",   keycode = "LGui" },
 ]
 
