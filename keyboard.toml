@@ -185,3 +185,16 @@ col_pins = ["P1_11", "P1_12", "P1_13", "P1_15", "P0_29", "P0_10"]
 
 [rmk]
 split_peripherals_num = 1
+# Light sleep after 3 minutes of no key activity (180 s). The RMK central
+# sleep manager (see rmk/src/split/ble/central.rs::sleep_manager_task) then:
+#   - Drops the BLE split-link connection interval from 7.5 ms → 200 ms
+#     (latency 30 → 25, supervision 5 s → 11 s) for substantial radio power
+#     reduction while staying connected to the host.
+#   - Sets the SLEEPING_STATE static to true and publishes SleepStateEvent,
+#     which propagates over the split link so `ctx.sleeping` becomes true on
+#     both halves' display renderers.
+# Any key press immediately wakes both halves and restores the fast 7.5 ms
+# connection interval (no reconnection delay observed by the host).
+# 0 = disabled (RMK default). We don't set the value lower than the BLE
+# supervision timeout to avoid spurious wakeups.
+split_central_sleep_timeout_seconds = 180

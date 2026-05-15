@@ -24,9 +24,33 @@
 //!   * Right screen: fully rotated, two columns reading bottom-to-top —
 //!     left column has active modifiers + WPM, right column has BT/USB
 //!     status, optional CAPS indicator, and a small WPM sparkline.
-//!   * After 30 s with no key press the screen "breathes" (content stays,
-//!     pixels dither). Once RMK reports `sleeping = true` (deep sleep) we
-//!     blank the panel entirely.
+//! Sleep / power story (must be read alongside `[rmk]
+//! split_central_sleep_timeout_seconds = 180` in keyboard.toml):
+//!
+//!   * 0 – 30 s after the last key press: content drawn full-bright.
+//!   * 30 s – 3 min: still awake, content drawn, but the framebuffer is
+//!     dithered (Bayer mask) to produce a "breathing" pulse. RMK is still
+//!     in its normal connection interval (7.5 ms).
+//!   * 3 min: the RMK central sleep manager drops the BLE link to a
+//!     low-power connection interval and broadcasts
+//!     `SleepStateEvent(true)`. Both halves now see `ctx.sleeping = true`
+//!     in their renderer.  The display processor *stops periodic polling*
+//!     while sleeping (`rmk/src/display/mod.rs`), so the framebuffer just
+//!     stays at whichever breathing frame was last drawn until the next
+//!     state event triggers a re-render (battery poll, BLE health, etc.).
+//!   * 10 min total idle = 7 min after entering RMK sleep: the renderer
+//!     decides we're now in "deep sleep" and starts blanking the framebuffer
+//!     entirely (all OFF pixels). Note: we can't reach the SSD1306 0xAE
+//!     command from inside a `DisplayRenderer` (the trait only sees a
+//!     `DrawTarget` — not the underlying `Ssd1306Async`), so this is a
+//!     visual "off" rather than a panel-power-down. The screen looks
+//!     blank; the SSD1306 segment drivers continue scanning the all-OFF
+//!     framebuffer (a ~20 µA cost on top of the already-sleeping radio,
+//!     well under the host BLE link's own consumption).
+//!   * Any key press: RMK fires `SleepStateEvent(false)` + the key event;
+//!     `ctx.sleeping` flips back to false, our tracker resets, and the
+//!     next render restores full-bright content immediately. The host
+//!     doesn't see a disconnect.
 
 use core::fmt::Write as _;
 
@@ -73,12 +97,26 @@ const FONT_BIG: MonoTextStyle<'static, BinaryColor> = MonoTextStyle::new(&FONT_8
 
 // ─── Activity / sleep tracker ────────────────────────────────────────────────
 
-/// Tracks the last time a key press was observed so we can drive a "breathing"
-/// effect after 30 s of inactivity. Distinct from RMK's own deep-sleep state
-/// (`ctx.sleeping`) — that wipes the display entirely.
+/// Tracks the last time a key press was observed (for the breathing pulse
+/// at 30 s) and the moment `ctx.sleeping` first became true (for the
+/// 7-minutes-into-sleep "deep sleep" / blank-screen cutoff).
+///
+/// Why a custom tracker instead of leaning on `RenderContext`: RMK only
+/// hands us a *snapshot* of state on each render — it has no concept of
+/// "how long has `ctx.sleeping` been true". We need our own clock to
+/// implement the 7-minute deep-sleep delay.
 struct ActivityTracker {
+    /// Wall-clock (ms since boot) of the most recent key event.
     last_active_ms: u64,
+    /// Wall-clock of the most recent render — used as the time reference
+    /// inside `breath_mask` so the renderer's view of "now" stays consistent
+    /// across the helper methods called within one `render()` invocation.
     last_render_ms: u64,
+    /// Wall-clock at which `ctx.sleeping` most recently flipped from false
+    /// to true. 0 means "not currently sleeping" (RMK is awake, or RMK is
+    /// sleeping but we haven't yet rendered after the transition — in that
+    /// case the next `tick()` will seed this).
+    sleep_started_ms: u64,
 }
 
 impl ActivityTracker {
@@ -86,16 +124,26 @@ impl ActivityTracker {
         Self {
             last_active_ms: 0,
             last_render_ms: 0,
+            sleep_started_ms: 0,
         }
     }
 
-    /// Sleep / breathing thresholds.
+    /// Idle time after which the breathing pulse kicks in (while still awake).
     const BREATH_AFTER_MS: u64 = 30_000;
     /// Full breath cycle (one in, one out) — slow enough to feel calm.
     const BREATH_PERIOD_MS: u64 = 3_000;
+    /// How long `ctx.sleeping` must stay continuously true before we treat
+    /// the state as "deep sleep" and blank the framebuffer entirely.
+    /// 7 min × 60 s × 1000 ms — combined with the 3-min RMK sleep timeout
+    /// in keyboard.toml this gives "10 min total idle → screens off".
+    const DEEP_SLEEP_AFTER_SLEEP_MS: u64 = 7 * 60 * 1_000;
 
-    /// Call once per render before drawing. Returns true on the first render
-    /// after init (so callers can seed `last_active_ms`).
+    /// Call once per render before drawing.
+    ///
+    /// Updates `last_active_ms` on every observed key event, and tracks the
+    /// continuous-sleep window: as soon as `ctx.sleeping` becomes false
+    /// (wake!) we reset `sleep_started_ms` so the 7-minute timer starts
+    /// fresh on the next sleep cycle.
     fn tick(&mut self, ctx: &RenderContext) -> u64 {
         let now = Instant::now().as_millis();
         // Seed on first call so a freshly powered-on keyboard doesn't start
@@ -106,14 +154,55 @@ impl ActivityTracker {
         if ctx.key_press_latch || ctx.key_pressed {
             self.last_active_ms = now;
         }
+
+        // Sleep-window tracking.
+        //
+        // RMK reports a single boolean (`ctx.sleeping`). We watch the
+        // transitions:
+        //   false → true : record the moment to start the 7-minute timer.
+        //   true  → false: clear the timer so a future sleep cycle starts
+        //                  the clock fresh.
+        //   stays true   : leave `sleep_started_ms` alone so elapsed grows.
+        //
+        // Edge case: if we first observe `ctx.sleeping = true` (the very
+        // first render after `SleepStateEvent(true)` arrives) and our
+        // `sleep_started_ms` is still 0, we seed it to *now* — meaning the
+        // 7-minute timer effectively starts from "first render after RMK
+        // told us we're sleeping", not from "the SleepStateEvent timestamp"
+        // (they're within a few ms anyway).
+        if ctx.sleeping {
+            if self.sleep_started_ms == 0 {
+                self.sleep_started_ms = now;
+            }
+        } else {
+            self.sleep_started_ms = 0;
+        }
+
         self.last_render_ms = now;
         now
+    }
+
+    /// True once `ctx.sleeping` has been continuously true for at least
+    /// [`DEEP_SLEEP_AFTER_SLEEP_MS`]. Caller short-circuits the rest of the
+    /// render pipeline and leaves the framebuffer cleared (all OFF pixels).
+    ///
+    /// Call this *after* [`tick`], so `sleep_started_ms` reflects the
+    /// current render's view of state.
+    fn is_deep_sleep(&self) -> bool {
+        if self.sleep_started_ms == 0 {
+            return false;
+        }
+        self.last_render_ms.saturating_sub(self.sleep_started_ms) >= Self::DEEP_SLEEP_AFTER_SLEEP_MS
     }
 
     /// If the keyboard has been idle long enough, return a `0..=255`
     /// "darkness" mask density. 0 = fully bright, 255 = fully dark. The
     /// renderer applies this as a dither so the *content stays visible* but
     /// appears to pulse, matching the user's requested behaviour.
+    ///
+    /// Note this triggers off `last_active_ms` only, so it also fires while
+    /// RMK is in light sleep (`ctx.sleeping = true`, < 7 min) — by then
+    /// idle is ≥ 3 min so we're well past the 30 s threshold.
     fn breath_mask(&self) -> Option<u8> {
         let now = self.last_render_ms;
         let idle = now.saturating_sub(self.last_active_ms);
@@ -415,11 +504,24 @@ impl RightRenderer {
 impl DisplayRenderer<BinaryColor> for RightRenderer {
     fn render<D: DrawTarget<Color = BinaryColor>>(&mut self, ctx: &RenderContext, display: &mut D) {
         let _ = display.clear(BinaryColor::Off);
-        if ctx.sleeping {
+
+        // Tick first so `is_deep_sleep` sees up-to-date sleep timing.
+        self.activity.tick(ctx);
+
+        // 7+ minutes of continuous `ctx.sleeping = true` (= 10 min total
+        // idle, given keyboard.toml's 3-min sleep threshold) → blank the
+        // framebuffer entirely and skip the rest of the render. On wake,
+        // `ctx.sleeping` flips to false, `tick()` clears the sleep timer,
+        // `is_deep_sleep()` returns false, and we resume drawing immediately.
+        //
+        // We can't reach the SSD1306 0xAE (display off) command from here
+        // — the renderer only gets a `DrawTarget`, not the underlying
+        // `Ssd1306Async`. Painting an all-OFF framebuffer is the closest
+        // approximation reachable via the RMK display API.
+        if self.activity.is_deep_sleep() {
             return;
         }
 
-        self.activity.tick(ctx);
         self.record_wpm(ctx.wpm);
 
         let mut rot = Rot90::new(display);
@@ -590,11 +692,14 @@ impl Default for LeftRenderer {
 impl DisplayRenderer<BinaryColor> for LeftRenderer {
     fn render<D: DrawTarget<Color = BinaryColor>>(&mut self, ctx: &RenderContext, display: &mut D) {
         let _ = display.clear(BinaryColor::Off);
-        if ctx.sleeping {
-            return;
-        }
 
         self.activity.tick(ctx);
+
+        // See `RightRenderer::render` for the rationale on the deep-sleep
+        // short-circuit and why we don't send the SSD1306 0xAE command.
+        if self.activity.is_deep_sleep() {
+            return;
+        }
 
         draw_left_battery_section(display, ctx);
         draw_left_layer_section(display, ctx);
