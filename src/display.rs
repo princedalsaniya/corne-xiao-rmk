@@ -466,37 +466,14 @@ fn draw_left_layer_section<D: DrawTarget<Color = BinaryColor>>(
 
 // ─── Right screen ────────────────────────────────────────────────────────────
 
-/// WPM samples kept for the sparkline on the right half. Push policy: every
-/// time RMK delivers a different WPM value via the split-link sync we
-/// shift-and-append a single sample.
-const WPM_SAMPLES: usize = 8;
-
 pub struct RightRenderer {
     activity: ActivityTracker,
-    wpm_history: [u8; WPM_SAMPLES],
-    last_observed_wpm: u16,
 }
 
 impl Default for RightRenderer {
     fn default() -> Self {
         Self {
             activity: ActivityTracker::new(),
-            wpm_history: [0; WPM_SAMPLES],
-            last_observed_wpm: u16::MAX,
-        }
-    }
-}
-
-impl RightRenderer {
-    fn record_wpm(&mut self, wpm: u16) {
-        if wpm != self.last_observed_wpm {
-            // Shift left, append. Cap at u8::MAX since the sparkline only
-            // cares about a 0..=255 range.
-            for i in 1..WPM_SAMPLES {
-                self.wpm_history[i - 1] = self.wpm_history[i];
-            }
-            self.wpm_history[WPM_SAMPLES - 1] = wpm.min(u8::MAX as u16) as u8;
-            self.last_observed_wpm = wpm;
         }
     }
 }
@@ -521,8 +498,6 @@ impl DisplayRenderer<BinaryColor> for RightRenderer {
         if self.activity.is_deep_sleep() {
             return;
         }
-
-        self.record_wpm(ctx.wpm);
 
         let mut rot = Rot90::new(display);
 
@@ -613,37 +588,43 @@ impl DisplayRenderer<BinaryColor> for RightRenderer {
             .draw(&mut rot);
         }
 
-        // Sparkline graph at the bottom of the right column. "GRAPH" label
-        // followed by 8 vertical bars whose height is proportional to the
-        // recorded WPM value.
-        let graph_label_x = 4i32; // very bottom of screen
+        // Right-half battery bar + percentage — replaces the WPM sparkline.
+        // Both halves have independent batteries; `ctx.battery` here is the
+        // peripheral's own reading (populated by RMK from its local ADC, not
+        // synced from the central).
+        let batt_pct = battery_percent(*ctx.battery).unwrap_or(0);
+        // Bar: local x = 14..36 (22 px long), anchored near physical bottom.
+        let bar_x0 = 14i32;
+        let bar_len = 22i32;
+        let bar_h = 8i32;
+        let bar_y0 = right_col_y0 + 2i32;
+        let _ = Rectangle::new(Point::new(bar_x0, bar_y0), Size::new(bar_len as u32, bar_h as u32))
+            .into_styled(STROKE)
+            .draw(&mut rot);
+        if battery_percent(*ctx.battery).is_some() {
+            let fill = ((batt_pct as i32 * (bar_len - 2)) / 100).clamp(0, bar_len - 2) as u32;
+            if fill > 0 {
+                let _ = Rectangle::new(
+                    Point::new(bar_x0 + 1, bar_y0 + 1),
+                    Size::new(fill, (bar_h - 2) as u32),
+                )
+                .into_styled(PrimitiveStyleBuilder::new().fill_color(BinaryColor::On).build())
+                .draw(&mut rot);
+            }
+        }
+        let mut batt_label: String<8> = String::new();
+        if battery_percent(*ctx.battery).is_some() {
+            let _ = write!(batt_label, "{}%", batt_pct);
+        } else {
+            let _ = batt_label.push_str("--");
+        }
         let _ = Text::with_baseline(
-            "GRAPH",
-            Point::new(graph_label_x, right_col_y0 + 4),
+            &batt_label,
+            Point::new(4i32, right_col_y0 + 4),
             FONT_SMALL,
             Baseline::Top,
         )
         .draw(&mut rot);
-
-        // Determine bars area: local x = 4 + 5*small_w .. 4 + 5*small_w + 40
-        // local y = right_col_y0 + 1 .. right_col_y0 + 15  (column inside right col)
-        let bars_x0 = graph_label_x + 5 * small_w + 2;
-        let bars_w_each = 3i32; // 2 px bar + 1 px gap
-        let max_bar_h = 12i32;
-        let max_sample = self.wpm_history.iter().copied().max().unwrap_or(0).max(1) as i32;
-        for (i, sample) in self.wpm_history.iter().copied().enumerate() {
-            let h = ((sample as i32) * max_bar_h / max_sample).clamp(0, max_bar_h);
-            if h == 0 {
-                continue;
-            }
-            let bar_local_x = bars_x0 + (i as i32) * bars_w_each;
-            // Bar grows upward from bottom of the right column.
-            let bar = Rectangle::new(
-                Point::new(bar_local_x, right_col_y0 + (15 - h)),
-                Size::new(2, h as u32),
-            );
-            let _ = bar.into_styled(FILL).draw(&mut rot);
-        }
 
         // Done with Rot90 — drop it so we can mutate `display` again.
         drop(rot);

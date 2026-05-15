@@ -25,7 +25,7 @@ keymap = [
     [
         # Bootloader | BT_SEL 0-3 not supported in toml (use Vial to assign) | BT_CLR = ClearEeprom
         ["Bootloader", "No", "No", "No", "No", "ClearEeprom",
-         "Kc1", "Kc2", "Kc3", "_", "Up", "Bootloader"],
+         "Kc1", "Kc2", "Kc3", "_", "Up", "_"],
         # wm_left=MACRO(0)  wm_right=MACRO(1)  wm_f=MACRO(2)  wm_m=MACRO(3)
         ["_", "MACRO(0)", "MACRO(1)", "MACRO(2)", "MACRO(3)", "_",
          "Kc4", "Kc5", "Kc6", "Left", "Down", "Right"],
@@ -48,7 +48,7 @@ keymap = [
         ["_", "_", "_", "AudioMute", "AudioVolDown", "AudioVolUp",
          "WM(Minus, LShift)", "Equal",
          "WM(LeftBracket, LShift)", "WM(RightBracket, LShift)", "WM(Backslash, LShift)", "WM(Kc6, LShift)"],
-        ["No", "No", "_", "_", "_", "No",   "No", "_", "_", "MO(2)", "No", "No"]
+        ["No", "No", "_", "_", "_", "No",   "No", "_", "Bootloader", "MO(2)", "No", "No"]
     ],
 ]
 
@@ -134,6 +134,14 @@ row_offset = 0
 col_offset = 0
 ble_addr = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xC0]
 
+[split.central.battery]
+# XIAO BLE battery voltage is read via P0_31 (AIN7) through an on-board
+# 2:1 resistor divider, so the ADC sees half the actual cell voltage.
+# Full charge 4.2 V → ~2100 mV at ADC; empty 3.0 V → ~1500 mV at ADC.
+pin = "P0_31"
+low_level = 1500
+high_level = 2100
+
 [split.central.display]
 driver = "ssd1306"
 size = "128x32"
@@ -163,6 +171,12 @@ cols = 6
 row_offset = 0
 col_offset = 6
 ble_addr = [0x11, 0x22, 0x33, 0x44, 0x55, 0xC1]
+
+[split.peripheral.battery]
+# Same voltage divider as central — identical XIAO BLE hardware.
+pin = "P0_31"
+low_level = 1500
+high_level = 2100
 
 [split.peripheral.display]
 driver = "ssd1306"
