@@ -501,132 +501,80 @@ impl DisplayRenderer<BinaryColor> for RightRenderer {
 
         let mut rot = Rot90::new(display);
 
-        let max_local_x = SCREEN_H; // full panel available
+        let max_local_x = SCREEN_H;
         let left_col_y0 = 0i32;
         let right_col_y0 = 16i32;
-
-        // ── Left column (top → bottom on screen) ─────────────────────────
-        // Modifiers first (only those currently active), then WPM at bottom.
-        let m = ctx.modifiers;
-        let mods: &[(bool, &str)] = &[
-            (m.left_gui() || m.right_gui(), "CMD"),
-            (m.left_shift() || m.right_shift(), "SHFT"),
-            (m.left_ctrl() || m.right_ctrl(), "CTRL"),
-            (m.left_alt() || m.right_alt(), "OPT"),
-        ];
-
-        // Modifiers occupy the upper ~3/4 of the column; WPM gets the
-        // bottom slot. "Top of screen" = high local x.
-        let mod_slot_h = (max_local_x * 3) / 4 / 4; // 24-ish px per slot
-        let mod_top_x = max_local_x - 4;
         let small_w = FONT_SMALL.font.character_size.width as i32;
-        for (i, &(active, label)) in mods.iter().enumerate() {
-            if !active {
-                continue;
-            }
-            // local x range for this slot: bot..top, anchored top-down so that
-            // the first modifier (CMD) sits closest to the top of the screen.
-            let slot_top = mod_top_x - (i as i32) * mod_slot_h;
-            let slot_bot = slot_top - mod_slot_h;
-            let label_w = label.len() as i32 * small_w;
-            let baseline_x = slot_bot + (mod_slot_h - label_w) / 2;
-            let _ = Text::with_baseline(
-                label,
-                Point::new(baseline_x.max(0), left_col_y0 + 2),
-                FONT_SMALL,
-                Baseline::Top,
-            )
-            .draw(&mut rot);
-        }
 
-        // WPM label at the bottom of the left column. Two glyph-runs side by
-        // side in local coords: "WPM" first (low local x → physical bottom)
-        // and the numeric count "above" it on the physical screen (higher
-        // local x).
-        let mut wpm_count: String<8> = String::new();
-        let _ = write!(wpm_count, "{}", ctx.wpm);
-        let wpm_label_w = 3 * small_w; // "WPM"
+        // ── Left column ───────────────────────────────────────────────────
+        // Bottom (low local x = physical bottom): WPM label + count.
+        let mut wpm_str: String<12> = String::new();
+        let _ = write!(wpm_str, "WPM {}", ctx.wpm);
         let _ = Text::with_baseline(
-            "WPM",
+            &wpm_str,
             Point::new(2, left_col_y0 + 2),
             FONT_SMALL,
             Baseline::Top,
         )
         .draw(&mut rot);
+
+        // Top (high local x = physical top): "BAT XX%" — no bar, just text.
+        let batt_pct = battery_percent(*ctx.battery).unwrap_or(0);
+        let mut bat_str: String<12> = String::new();
+        if battery_percent(*ctx.battery).is_some() {
+            let _ = write!(bat_str, "BAT {}%", batt_pct);
+        } else {
+            let _ = bat_str.push_str("BAT --");
+        }
+        let bat_x = (max_local_x - bat_str.len() as i32 * small_w - 4).max(0);
         let _ = Text::with_baseline(
-            &wpm_count,
-            Point::new(2 + wpm_label_w + 4, left_col_y0 + 2),
+            &bat_str,
+            Point::new(bat_x, left_col_y0 + 2),
             FONT_SMALL,
             Baseline::Top,
         )
         .draw(&mut rot);
 
-        // ── Right column (top → bottom on screen) ────────────────────────
-        // Connection status, then CAPS (middle, only when active), then
-        // WPM sparkline at the bottom.
+        // ── Right column ──────────────────────────────────────────────────
+        // Top (high local x = physical top): BT / USB / ADV connection.
         let mut conn_label: String<8> = String::new();
         write_connection_label(&mut conn_label, ctx);
-        let label_w = conn_label.len() as i32 * small_w;
-        let conn_baseline_x = max_local_x - 4 - label_w; // anchored near top
+        let conn_x = (max_local_x - conn_label.len() as i32 * small_w - 4).max(0);
         let _ = Text::with_baseline(
             &conn_label,
-            Point::new(conn_baseline_x.max(0), right_col_y0 + 4),
+            Point::new(conn_x, right_col_y0 + 4),
             FONT_SMALL,
             Baseline::Top,
         )
         .draw(&mut rot);
 
-        // CAPS in the middle — only when caps lock is active.
-        if ctx.caps_lock {
-            let caps_x = max_local_x / 2 - 2 * small_w;
+        // Bottom (low local x = physical bottom): active modifiers stacked
+        // upward. CMD sits at the very bottom, then SHFT, CTL, OPT above it.
+        // Only active modifiers are drawn; inactive ones leave no gap so the
+        // stack is always dense from the bottom.
+        let m = ctx.modifiers;
+        let mod_list: &[(bool, &str)] = &[
+            (m.left_gui()   || m.right_gui(),   "CMD"),
+            (m.left_shift() || m.right_shift(), "SHF"),
+            (m.left_ctrl()  || m.right_ctrl(),  "CTL"),
+            (m.left_alt()   || m.right_alt(),   "OPT"),
+        ];
+        let mod_slot = 3 * small_w + 2; // 17 px per label in local x
+        let mut slot = 0i32;
+        for &(active, label) in mod_list.iter() {
+            if !active {
+                continue;
+            }
             let _ = Text::with_baseline(
-                "CAPS",
-                Point::new(caps_x.max(0), right_col_y0 + 4),
+                label,
+                Point::new(2 + slot * mod_slot, right_col_y0 + 4),
                 FONT_SMALL,
                 Baseline::Top,
             )
             .draw(&mut rot);
+            slot += 1;
         }
 
-        // Right-half battery bar + percentage — replaces the WPM sparkline.
-        // Both halves have independent batteries; `ctx.battery` here is the
-        // peripheral's own reading (populated by RMK from its local ADC, not
-        // synced from the central).
-        let batt_pct = battery_percent(*ctx.battery).unwrap_or(0);
-        // Bar: local x = 14..36 (22 px long), anchored near physical bottom.
-        let bar_x0 = 14i32;
-        let bar_len = 22i32;
-        let bar_h = 8i32;
-        let bar_y0 = right_col_y0 + 2i32;
-        let _ = Rectangle::new(Point::new(bar_x0, bar_y0), Size::new(bar_len as u32, bar_h as u32))
-            .into_styled(STROKE)
-            .draw(&mut rot);
-        if battery_percent(*ctx.battery).is_some() {
-            let fill = ((batt_pct as i32 * (bar_len - 2)) / 100).clamp(0, bar_len - 2) as u32;
-            if fill > 0 {
-                let _ = Rectangle::new(
-                    Point::new(bar_x0 + 1, bar_y0 + 1),
-                    Size::new(fill, (bar_h - 2) as u32),
-                )
-                .into_styled(PrimitiveStyleBuilder::new().fill_color(BinaryColor::On).build())
-                .draw(&mut rot);
-            }
-        }
-        let mut batt_label: String<8> = String::new();
-        if battery_percent(*ctx.battery).is_some() {
-            let _ = write!(batt_label, "{}%", batt_pct);
-        } else {
-            let _ = batt_label.push_str("--");
-        }
-        let _ = Text::with_baseline(
-            &batt_label,
-            Point::new(4i32, right_col_y0 + 4),
-            FONT_SMALL,
-            Baseline::Top,
-        )
-        .draw(&mut rot);
-
-        // Done with Rot90 — drop it so we can mutate `display` again.
         drop(rot);
 
         if let Some(mask) = self.activity.breath_mask() {
