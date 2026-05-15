@@ -15,10 +15,10 @@ layers = 3
 keymap = [
     # ── Layer 0 · Base ────────────────────────────────────────────────────────
     [
-        ["Tab",    "Q", "W", "E", "R", "T",   "Y", "U",         "I",         "O",   "P",         "Escape"],
+        ["Tab",    "Q", "W", "E", "R", "T",   "Y", "U",         "I",         "O",   "P",         "Backspace"],
         ["LShift", "A", "S", "D", "F", "G",   "H", "J",         "K",         "L",   "Semicolon", "Quote"],
-        ["LCtrl",  "Z", "X", "C", "V", "B",   "N", "M",         "Comma",     "Dot", "Slash",     "RShift"],
-        ["No", "No", "MO(1)", "LGui", "Space", "No",   "No", "Enter", "Backspace", "MO(2)", "No", "No"]
+        ["LCtrl",  "Z", "X", "C", "V", "B",   "N", "M",         "Comma",     "Dot", "Slash",     "RAlt"],
+        ["No", "No", "MO(1)", "LGui", "Space", "No",   "No", "Enter", "RShift", "MO(2)", "No", "No"]
     ],
     # ── Layer 1 · Raise ───────────────────────────────────────────────────────
     # Left thumb 1 held → this layer active
@@ -44,8 +44,8 @@ keymap = [
         # media prev/play/next  |  - + [ ] \ `
         ["_", "_", "_", "MediaPrevTrack", "MediaPlayPause", "MediaNextTrack",
          "Minus", "WM(Equal, LShift)", "LeftBracket", "RightBracket", "Backslash", "Grave"],
-        # mute vol-up vol-dn  |  _ = { } | ^
-        ["_", "_", "_", "AudioMute", "AudioVolUp", "AudioVolDown",
+        # mute vol-dn vol-up  |  _ = { } | ^
+        ["_", "_", "_", "AudioMute", "AudioVolDown", "AudioVolUp",
          "WM(Minus, LShift)", "Equal",
          "WM(LeftBracket, LShift)", "WM(RightBracket, LShift)", "WM(Backslash, LShift)", "WM(Kc6, LShift)"],
         ["No", "No", "_", "_", "_", "No",   "No", "_", "_", "MO(2)", "No", "No"]
