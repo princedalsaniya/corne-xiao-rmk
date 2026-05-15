@@ -72,7 +72,6 @@ use rmk::types::battery::BatteryStatus;
 // `nrf52840_ble` (enabled in our Cargo.toml) transitively turns on rmk's
 // `_ble` feature, so `ctx.ble_status` is always present and `BleState` is
 // always reachable. We don't need a `#[cfg]` guard here.
-use rmk::types::ble::BleState;
 
 // ─── Geometry ────────────────────────────────────────────────────────────────
 
@@ -374,9 +373,9 @@ fn draw_text_centered<D: DrawTarget<Color = BinaryColor>>(
     let _ = Text::with_baseline(text, Point::new(x + pad, y), style, baseline).draw(display);
 }
 
-// ─── Battery section (left screen top) ───────────────────────────────────────
+// ─── Battery section (top of either screen, direct coords) ──────────────────
 
-fn draw_left_battery_section<D: DrawTarget<Color = BinaryColor>>(
+fn draw_battery_section<D: DrawTarget<Color = BinaryColor>>(
     display: &mut D,
     ctx: &RenderContext,
 ) {
@@ -499,15 +498,19 @@ impl DisplayRenderer<BinaryColor> for RightRenderer {
             return;
         }
 
+        // Battery bar + % at physical top — same section as left OLED.
+        draw_battery_section(display, ctx);
+
         let mut rot = Rot90::new(display);
 
-        let max_local_x = SCREEN_H;
+        // Cap local x to the space below the battery zone so Rot90 content
+        // never overwrites the battery bar drawn above.
+        let max_local_x = SCREEN_H - LEFT_BATTERY_ZONE_H; // 94 px
         let left_col_y0 = 0i32;
         let right_col_y0 = 16i32;
         let small_w = FONT_SMALL.font.character_size.width as i32;
 
-        // ── Left column ───────────────────────────────────────────────────
-        // Bottom (low local x = physical bottom): WPM label + count.
+        // ── Left column: WPM bottom-aligned ──────────────────────────────
         let mut wpm_str: String<12> = String::new();
         let _ = write!(wpm_str, "WPM {}", ctx.wpm);
         let _ = Text::with_baseline(
@@ -518,40 +521,8 @@ impl DisplayRenderer<BinaryColor> for RightRenderer {
         )
         .draw(&mut rot);
 
-        // Top (high local x = physical top): "BAT XX%" — no bar, just text.
-        let batt_pct = battery_percent(*ctx.battery).unwrap_or(0);
-        let mut bat_str: String<12> = String::new();
-        if battery_percent(*ctx.battery).is_some() {
-            let _ = write!(bat_str, "BAT {}%", batt_pct);
-        } else {
-            let _ = bat_str.push_str("BAT --");
-        }
-        let bat_x = (max_local_x - bat_str.len() as i32 * small_w - 4).max(0);
-        let _ = Text::with_baseline(
-            &bat_str,
-            Point::new(bat_x, left_col_y0 + 2),
-            FONT_SMALL,
-            Baseline::Top,
-        )
-        .draw(&mut rot);
-
-        // ── Right column ──────────────────────────────────────────────────
-        // Top (high local x = physical top): BT / USB / ADV connection.
-        let mut conn_label: String<8> = String::new();
-        write_connection_label(&mut conn_label, ctx);
-        let conn_x = (max_local_x - conn_label.len() as i32 * small_w - 4).max(0);
-        let _ = Text::with_baseline(
-            &conn_label,
-            Point::new(conn_x, right_col_y0 + 4),
-            FONT_SMALL,
-            Baseline::Top,
-        )
-        .draw(&mut rot);
-
-        // Bottom (low local x = physical bottom): active modifiers stacked
-        // upward. CMD sits at the very bottom, then SHFT, CTL, OPT above it.
-        // Only active modifiers are drawn; inactive ones leave no gap so the
-        // stack is always dense from the bottom.
+        // ── Right column: modifiers stacked from bottom upward ────────────
+        // CMD at the very bottom, then SHF, CTL, OPT. Only active ones drawn.
         let m = ctx.modifiers;
         let mod_list: &[(bool, &str)] = &[
             (m.left_gui()   || m.right_gui(),   "CMD"),
@@ -559,7 +530,7 @@ impl DisplayRenderer<BinaryColor> for RightRenderer {
             (m.left_ctrl()  || m.right_ctrl(),  "CTL"),
             (m.left_alt()   || m.right_alt(),   "OPT"),
         ];
-        let mod_slot = 3 * small_w + 2; // 17 px per label in local x
+        let mod_slot = 3 * small_w + 2; // 17 px per slot in local x
         let mut slot = 0i32;
         for &(active, label) in mod_list.iter() {
             if !active {
@@ -583,26 +554,6 @@ impl DisplayRenderer<BinaryColor> for RightRenderer {
     }
 }
 
-/// Write either "BT N" (if BLE is connected) or "USB" into `buf`. Falls back
-/// to "ADV"/"USB" depending on BLE state.
-fn write_connection_label<const N: usize>(buf: &mut String<N>, ctx: &RenderContext) {
-    match ctx.ble_status.state {
-        BleState::Connected => {
-            let _ = write!(buf, "BT {}", ctx.ble_status.profile);
-        }
-        BleState::Advertising => {
-            let _ = buf.push_str("ADV");
-        }
-        BleState::Inactive => {
-            // No BLE active → assume USB host on the central. The right
-            // half mirrors the central's host transport state via
-            // `SplitMessage::ConnectionState`, but the display renderer
-            // only sees the `RenderContext` (no direct access). The user
-            // asked for "BT N or USB", so map "BLE inactive" → "USB".
-            let _ = buf.push_str("USB");
-        }
-    }
-}
 
 // ─── Left screen ─────────────────────────────────────────────────────────────
 
@@ -630,7 +581,7 @@ impl DisplayRenderer<BinaryColor> for LeftRenderer {
             return;
         }
 
-        draw_left_battery_section(display, ctx);
+        draw_battery_section(display, ctx);
         draw_left_layer_section(display, ctx);
 
         if let Some(mask) = self.activity.breath_mask() {
