@@ -153,14 +153,10 @@ cols = 6
 row_offset = 0
 col_offset = 0
 ble_addr = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xC0]
-
-[split.central.battery]
-# XIAO BLE battery voltage is read via P0_31 (AIN7) through an on-board
-# 2:1 resistor divider, so the ADC sees half the actual cell voltage.
-# Full charge 4.2 V → ~2100 mV at ADC; empty 3.0 V → ~1500 mV at ADC.
-pin = "P0_31"
-low_level = 1500
-high_level = 2100
+# XIAO BLE battery: P0_31 (AIN7) through 2:1 on-board resistor divider.
+battery_adc_pin = "P0_31"
+adc_divider_measured = 1
+adc_divider_total = 2
 
 [split.central.display]
 driver = "ssd1306"
@@ -191,12 +187,10 @@ cols = 6
 row_offset = 0
 col_offset = 6
 ble_addr = [0x11, 0x22, 0x33, 0x44, 0x55, 0xC1]
-
-[split.peripheral.battery]
 # Same voltage divider as central — identical XIAO BLE hardware.
-pin = "P0_31"
-low_level = 1500
-high_level = 2100
+battery_adc_pin = "P0_31"
+adc_divider_measured = 1
+adc_divider_total = 2
 
 [split.peripheral.display]
 driver = "ssd1306"
