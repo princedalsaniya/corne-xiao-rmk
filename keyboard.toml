@@ -40,10 +40,10 @@ keymap = [
         # ! @ # $ %  |  ` & ( ) *
         ["_",
          "WM(Kc1, LShift)", "WM(Kc2, LShift)", "WM(Kc3, LShift)", "WM(Kc4, LShift)", "WM(Kc5, LShift)",
-         "Grave", "WM(Kc7, LShift)", "WM(Kc9, LShift)", "WM(Kc0, LShift)", "WM(Kc8, LShift)", "_"],
-        # media prev/play/next  |  - + [ ] \ `
+         "WM(Grave, LAlt)", "WM(Kc7, LShift)", "WM(Kc9, LShift)", "WM(Kc0, LShift)", "WM(Kc8, LShift)", "_"],
+        # media prev/play/next  |  - + [ ] \ ~
         ["_", "_", "_", "MediaPrevTrack", "MediaPlayPause", "MediaNextTrack",
-         "Minus", "WM(Equal, LShift)", "LeftBracket", "RightBracket", "Backslash", "Grave"],
+         "Minus", "WM(Equal, LShift)", "LeftBracket", "RightBracket", "Backslash", "WM(Grave, LShift)"],
         # mute vol-dn vol-up  |  _ = { } | ^
         ["_", "_", "_", "AudioMute", "AudioVolDown", "AudioVolUp",
          "WM(Minus, LShift)", "Equal",
